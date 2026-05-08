@@ -2,9 +2,8 @@
 
 # Huntington's Disease Prefrontal Cortex — RNA-seq Explorer
 
-An interactive R Shiny application for exploring RNA-seq data from post-mortem prefrontal cortex samples of Huntington's Disease (HD) patients compared to neurologically healthy controls.
+An interactive R Shiny application for exploring RNA-seq data from post-mortem prefrontal cortex samples of Huntington's Disease (HD) patients compared to neurologically healthy controls (Original data and study: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE64810).
 
-Original data and study from: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE64810
 ---
 
 ## About the Data
