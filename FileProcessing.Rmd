@@ -1,0 +1,185 @@
+---
+title: "File Processing & data clean up"
+output: html_document
+---
+
+
+Normalized counts - file reading (Done in local R studio)
+```{r}
+norm_counts <- read.csv("~/Documents/Masters Bioinformatics BU/Courses/Biological Data Science in R/Final Project/GSE64810_norm_counts_FPKM_GRCh38.p13_NCBI.tsv", header = TRUE, sep = "\t")
+
+write.csv(
+  norm_counts,
+  file = "~/Documents/Masters Bioinformatics BU/Courses/Biological Data Science in R/Final Project/normalized_counts.csv",
+  quote = FALSE
+)
+```
+
+
+Sample info - metadata (Done in local R studio)
+```{r}
+#metadata 
+# Read raw GEO lines
+lines <- readLines("~/Documents/Masters Bioinformatics BU/Courses/Biological Data Science in R/Final Project/GSE64810_series_matrix.txt")
+
+# Keep only sample metadata lines
+sample_lines <- grep("^!Sample_", lines, value = TRUE)
+
+# Split each line on tabs
+split_lines <- strsplit(sample_lines, "\t")
+
+# Extract field names
+field_names <- gsub("^!Sample_", "", sapply(split_lines, `[`, 1))
+
+# Make duplicate names unique
+field_names <- make.unique(field_names)
+
+# Extract values
+values <- lapply(split_lines, function(x) x[-1])
+
+# Remove quotation marks
+values <- lapply(values, function(x) gsub("\"", "", x))
+
+# Create dataframe
+metadata <- as.data.frame(t(do.call(rbind, values)),
+                          stringsAsFactors = FALSE)
+
+# Assign unique column names
+colnames(metadata) <- field_names
+colnames(metadata)
+
+unique(metadata$characteristics_ch1.1)
+
+unique(metadata$characteristics_ch1.2)
+
+head(metadata[, grep("characteristics", colnames(metadata))])
+
+metadata_clean <- data.frame(
+  sample_name = metadata$title,
+  geo_accession = metadata$geo_accession,
+  tissue = metadata$characteristics_ch1,
+  diagnosis = metadata$characteristics_ch1.1,
+  pmi = metadata$characteristics_ch1.2,
+  age = metadata$characteristics_ch1.3,
+  rin = metadata$characteristics_ch1.4,
+  reads = metadata$characteristics_ch1.5,
+  stringsAsFactors = FALSE
+)
+
+metadata_clean$tissue <- sub("tissue: ", "", metadata_clean$tissue)
+
+metadata_clean$diagnosis <- sub("diagnosis: ", "", metadata_clean$diagnosis)
+
+metadata_clean$pmi <- sub("pmi: ", "", metadata_clean$pmi)
+
+metadata_clean$age <- sub("age of death: ", "", metadata_clean$age)
+
+metadata_clean$rin <- sub("rin: ", "", metadata_clean$rin)
+
+metadata_clean$reads <- sub("mrna-seq reads: ", "", metadata_clean$reads)
+
+
+metadata_clean$pmi <- as.numeric(metadata_clean$pmi)
+
+metadata_clean$age <- as.numeric(metadata_clean$age)
+
+metadata_clean$rin <- as.numeric(metadata_clean$rin)
+
+metadata_clean$reads <- as.numeric(metadata_clean$reads)
+
+head(metadata_clean)
+
+str(metadata_clean)
+
+write.csv(
+  metadata_clean,
+  "~/Documents/Masters Bioinformatics BU/Courses/Biological Data Science in R/Final Project/metadata.csv",
+  row.names = FALSE,
+  quote = FALSE
+)
+```
+
+
+
+DESeq2 (read in on local R studio, then uploaded and finished cleaning up on scc)
+```{r}
+de_results <- read.csv("~/Documents/Masters Bioinformatics BU/Courses/Biological Data Science in R/Final Project/de_results.csv", header = TRUE)
+colnames(de_results)[colnames(de_results) == "X"] <- "gene_id"
+de_results$X.1 <- NULL
+colnames(de_results)
+head(de_results$gene_id)
+
+strip_data <- de_results$gene_id <- sub("\\..*", "", de_results$gene_id)
+```
+
+
+FGSEA (fully carried out on scc)
+```{r}
+library(fgsea)
+library(msigdbr)
+
+
+# 1. Remove rows without gene symbols first
+de_results_clean <- de_results[!is.na(de_results$symbol), ]
+
+# 2. Remove duplicate gene symbols (keep highest stat)
+de_results_clean <- de_results_clean[
+  order(de_results_clean$stat, decreasing = TRUE),
+]
+
+de_results_clean <- de_results_clean[
+  !duplicated(de_results_clean$symbol),
+]
+
+# 3. Build ranked vector
+ranks <- de_results_clean$stat
+names(ranks) <- de_results_clean$symbol
+
+# 4. Remove any leftover NA names (safety step)
+ranks <- ranks[!is.na(names(ranks))]
+
+# 5. Sort once (FINAL required step)
+ranks <- sort(ranks, decreasing = TRUE)
+
+# sanity check 
+head(ranks)
+length(ranks)
+sum(is.na(ranks))
+
+msig <- msigdbr(species = "Homo sapiens", category = "H")
+pathways <- split(msig$gene_symbol, msig$gs_name)
+
+#run FGSEA
+fgseaRes <- fgseaMultilevel(pathways = pathways,
+                  stats = ranks)
+
+```
+
+Writing fgsea file to csv to download 
+```{r}
+# Copy original FGSEA results
+fgseaRes_df <- fgseaRes
+
+# Convert leadingEdge list column into text
+fgseaRes_df$leadingEdge <- sapply(
+  fgseaRes_df$leadingEdge,
+  paste,
+  collapse = ";"
+)
+
+# Write CSV
+write.csv(
+  fgseaRes_df,
+  file = "gsea_results.csv",
+  row.names = FALSE,
+  quote = FALSE
+)
+
+```
+
+
+
+
+
+
+
