@@ -773,16 +773,37 @@ server <- function(input, output, session) {
     # otherwise fall back to coloring each sample individually by name
     if (!is.null(input$samples_file)) {
       meta <- tryCatch(metadata(), error = function(e) NULL)
+      
       if (!is.null(meta)) {
-        overlap <- intersect(pca_df$sample_id, meta[[1]])
+        
+        validate(
+          need("geo_accession" %in% names(meta),
+               "Metadata must contain a 'geo_accession' column to match counts columns.")
+        )
+        
+        # Clean both sides before matching
+        pca_ids <- trimws(pca_df$sample_id)
+        geo_ids <- trimws(as.character(meta$geo_accession))
+        
+        # Update pca_df and meta with cleaned IDs
+        pca_df$sample_id   <- pca_ids
+        meta$geo_accession <- geo_ids
+        
+        overlap <- intersect(pca_ids, geo_ids)
+        
         validate(
           need(length(overlap) > 0,
-               "No matching sample IDs between counts columns and metadata first column.")
+               paste0(
+                 "No matching sample IDs.\n",
+                 "Counts columns (first 3): ", paste(head(pca_ids, 3), collapse = ", "), "\n",
+                 "Metadata geo_accession (first 3): ", paste(head(geo_ids, 3), collapse = ", ")
+               ))
         )
-        pca_df <- left_join(pca_df, meta,
-                            by = c("sample_id" = "geo_accession"))
         
+        pca_df    <- left_join(pca_df, meta,
+                               by = c("sample_id" = "geo_accession"))
         color_col <- "condition"
+        
       } else {
         color_col <- "sample_id"
       }
